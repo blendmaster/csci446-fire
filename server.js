@@ -22,8 +22,11 @@
   try {
     if (that = process.env.REDISTOGO_URL) {
       u = url.parse(that);
+      db = redis.createClient(u.port, u.hostname);
+      db.auth(u.auth.split(':')[1]);
+    } else {
+      db = redis.createClient();
     }
-    db = redis.createClient(u.port, u ? u.protocol + "//" + u.auth + "@" + u.hostname : void 8);
     db.on('error', function(it){
       return console.error(it);
     });

@@ -23,12 +23,15 @@ fourohfour = (res) ->
 # as a single JSON string, in a single redis key
 # surely, the best use of such an advanced data store
 
-# stupid redis client requires separate port and url
+# stupid redis client (and heroku) requires separate port and url
 # so we have to reconstruct the given url
 try
 	if process.env.REDISTOGO_URL
 		u = url.parse that
-	db = redis.createClient u.port, if u then "#{u.protocol}//#{u.auth}@#{u.hostname}"
+		db = redis.createClient u.port, u.hostname
+		db.auth u.auth.split(\:).1 # extract password from user:pass
+	else
+		db = redis.createClient!
 	db.on \error -> console.error it # simple error logging
 catch e
 	console.error "couldn't connect to redis!"
