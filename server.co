@@ -1,0 +1,68 @@
+# redis-backed high score and game client server
+# Author: Steven Ruppert
+
+http = require \http
+url = require \url
+fs = require \fs
+path = require \path
+mime = require \mime
+redis = require \redis
+
+# respond with 500 errors
+error = (err, res) ->
+	console.error err
+	res.writeHead 500 \Content-Type : \text/plain
+	res.end "Something has gone horribly wrong!"
+
+# respond with 404
+fourohfour = (res) ->
+	res.writeHead 404 \Content-Type : \text/plain
+	res.end "Resource not found"
+
+
+# could've used express to make this easier, but that's boring
+http.createServer ({method}: req, res) ->
+
+	{pathname} = url.parse req.url
+	console.log "request #method #pathname"
+
+	if method is \GET
+		if pathname is \/scores
+			# TODO serve scores
+			console.log "scores requested"
+			res.writeHead 200 'Content-Type': 'text/plain'
+			res.end 'scores'
+		else
+			# serve static assets from public folder
+			filename = path.join \public pathname
+			
+			(exists) <- path.exists filename
+			return fourohfour res unless exists
+			
+			(err, stat) <- fs.stat filename
+			return error err, res if err
+
+			# handle / root to index.html
+			filename += \index.html if stat.isDirectory!
+
+			(err, file) <- fs.readFile filename
+			return error err, res if err
+
+			res.writeHead 200 \Content-Type : mime.lookup filename
+			res.end file, \binary # serve file
+
+	else if method is \POST
+		# handle POST /scores to update list
+		return fourohfour res unless pathname is \score
+
+		# TODO update scores
+			console.log "scores updated"
+			res.writeHead 200 'Content-Type': 'text/plain'
+			res.end 'scores updated'
+	else
+		fourohfour res
+
+.listen 1337
+
+console.log 'Server started!'
+

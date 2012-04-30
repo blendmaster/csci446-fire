@@ -1,0 +1,30 @@
+html { 
+	min-height: 100%;
+	background: url(assets/paper.png); }
+
+/* lame use of container div, because even if
+the body is positioned, setting the background
+applies to the entire html viewport, probably
+because that's what people expect. */
+#container {
+	/* set so absolutely-positioned children are then
+	   positioned relative to the body */
+	position: relative;
+	width: 320px;
+	margin: 0 auto; 
+	padding: 27px;
+	background: url(assets/border.png) no-repeat; }
+
+#canvas { cursor: pointer; }
+	
+#high-scores {
+	position: absolute;
+	top: 198px;
+	left: 105px;
+	pointer-events: none; 
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-size: 12px;
+	line-height: 18px;
+	font-family: 'Gloria Hallelujah', sans-serif;}

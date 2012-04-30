@@ -1,0 +1,372 @@
+# IE9 fix, since it doesn't support the hidden attribute
+for el of document.querySelectorAll '*[hidden]'
+	el.style.display = \none
+
+hide = ->
+	it.hidden = true
+	it.style.display = \none
+
+show = ->
+	it.hidden = false
+	it.style.removeProperty \display
+
+<- window.addEventListener \load
+# DOM interfacing
+
+canvas = document.getElementById \canvas
+{width, height} = canvas
+ctx = canvas.getContext \2d
+
+
+# image assets
+assets = {}
+for img of document.getElementById \assets .children
+	assets[img.id] = img
+
+# shortcut to draw image assets to the screen
+ctx.render = -> @drawImage do
+	assets[it] or throw new Error "asset #it doesn't exist!"
+	0
+	0
+
+# generate a normally distributed number using the central limit theorem
+normal_rand = (mean, std_dev) ->
+	avg = 0
+	avg += Math.random! * 2 - 1 for i til 32 # [-1, 1)
+	return Math.floor ( avg / 32 * std_dev + mean )
+
+# good ol vendor prefixes
+window.requestAnimationFrame = 
+	window.requestAnimationFrame or
+	window.mozRequestAnimationFrame or
+	window.webkitRequestAnimationFrame or
+	window.msRequestAnimationFrame or
+	window.oRequestAnimationFrame or
+	-> window.setTimeout it, 1000ms / 60frames
+
+window.cancelAnimationFrame = 
+	window.cancelAnimationFrame or
+	window.mozCancelAnimationFrame or
+	window.webkitCancelAnimationFrame or
+	window.msCancelAnimationFrame or
+	window.oCancelAnimationFrame or
+	-> window.clearTimeout it
+
+# game constants
+stop = [ 4 12 18 ] # where there is a trampoline check 
+end = 21positions
+
+# balancing constants
+move_delay = 38frames # beep boop boop
+trampoline_delay = 8frames # grace period for player to bounce player
+
+inter_wave_delay = (points) ->
+	Math.min do
+		move_delay * ( end - 2 ) # at most
+		Math.max do
+			move_delay # at least move delay
+			# linear scale from full cycle to nothing at 1000 points
+			normal_rand move_delay * ( end - 5 -  points * 21moves / 1000points ), move_delay * end
+
+wave_length = (points) ->
+	Math.min do
+		3 + points * 7 / 1000points # scaling maximum starting at 3
+		Math.max do
+			Math.floor 1 + points * 2 / 1000 # at least this many people
+			# linear from 2 people to 8 people at 100points, plus randomness
+			normal_rand 2 + points * 8 / 1000points, 10people
+
+inter_person_delay = (points) ->
+	Math.max do
+		move_delay * 1.5
+		# linear scale for average for 4 positions between guys to 3 positions at
+		# 1000points
+		normal_rand move_delay * (4 - points * 1 / 1000points) , move_delay * 20
+
+# high score handling
+try # using try block because localStorage access might be security blocked
+	high_scores = JSON.parse localStorage?high_scores # localstorage only stores strings
+
+unless high_scores? and Array.isArray high_scores
+	high_scores = 
+		* name: \mario score: 384
+		* name: \luigi score: 253
+		* name: \wario score: 231
+		* name: \bowser score: 133
+		* name: \toad score: 27
+
+high_score_threshold = # minimum high score
+	( high_scores.reduce (a,b) -> if a.score < b.score then a else b ).score
+
+add_high_score = !(points) ->
+	high_scores.push do
+		name: window.prompt('You got a high score! enter your name:','').substr(0,10) || \anonymous
+		score: points
+
+	# sort decending and take 5 highest
+	high_scores.:=sort( (a,b) -> b.score - a.score ).slice 0 5
+	try
+		localStorage.\high_scores = JSON.stringify( high_scores ) if localStorage # persist
+	catch
+		alert "Sorry, I couldn't save your high score. Check your browser's security settings and 
+			make sure that this webpage is allowed to store data on your computer."
+
+high_scores_el = document.getElementById \high-scores
+
+hide_high_scores = -> hide high_scores_el
+
+show_high_scores = !->
+	list = ''
+	list += "<li>#{h.name} : #{h.score}</li>" for h of high_scores
+
+	high_scores_el.innerHTML = list
+	show high_scores_el
+
+# game data, closed over in functions
+# all initialized to void, so coco will declare them in the right scope
+# in vanilla javascript, they'd be empty var declarations, but such is the
+# price we must pay for non-vanilla javascript
+people = void # list of people on screen
+trampoline = void # position of trampoline
+points = void
+misses = void
+next_wave = void # delay until next wave when current wave ends
+wave = void # delays between people in wave
+frame = void # id of the next frame, for canceling
+
+draw = !->
+	ctx.clearRect 0 0 width, height
+	ctx.render \bg
+
+	ctx.font = '12px "Gloria Hallelujah"'
+	ctx.fillText points, 155 16
+	ctx.render "#{misses}miss" if misses > 0
+
+	ctx.render "tramp#{trampoline}"
+
+	ctx.render p.position.toString! for p of people
+
+tick = !->
+	dropped = false # if somebody got dropped
+	dirty = false # if somebody moved and a redraw is necessary
+
+	tramp = stop[trampoline] # trampoline move position
+
+	for p of people
+		if --p.delay <= 0 # until person is due to move
+			dirty = true
+			p.delay = move_delay
+			prev = p.position
+			pos = ++p.position
+			
+			if stop.indexOf(pos) is not -1 # entered a bounce spot
+				unless pos is tramp # trampoline is already positioned
+					p.death_timer = trampoline_delay # start grace period
+
+			if stop.indexOf(prev) is not -1 # if they were bounced
+				++points
+				p.bounced = false # reset flag for next bounce
+
+		# short grace time for trampoline check, so trampoline can handle
+		# multiple people in-between moves
+		if p.death_timer
+			if --p.death_timer is 0
+				++misses
+				dropped = p
+				break # stop processing people
+
+		if p.position is tramp
+			p.bounced = true 
+			p.death_timer = 0
+
+	if dropped
+		people.splice people.indexOf( dropped ), 1 # remove person
+		drop_animation p.position
+	else
+		# pop first person if they're saved
+		people.shift! if people.0?position is end
+
+		if next_wave > 0
+			--next_wave # wait till next wave
+		else
+			if --wave.0 <= 0 # if first person in wave is ready
+				wave.shift! # discard first wave delay
+				people.push position: 0, delay: move_delay
+				dirty = true
+
+				if wave.length is 0
+					next_wave := inter_wave_delay points # delay till next wave
+					wave := for i til wave_length points
+						inter_person_delay points
+					if wave.length is 1
+						next_wave /= 2 # try to space out single person waves better
+
+		draw! if dirty
+		frame := window.requestAnimationFrame tick # next frame
+
+# map from miss position to next walkoff
+walk_off_positions = 4: 0, 12: 2, 18: 3
+drop_animation = !(drop_position) ->
+	# temporarily prevent trampoline movement
+	document.removeEventListener \keydown key_move
+	canvas.removeEventListener \click click_move
+
+	draw!
+	ctx.render "miss#{drop_position}"
+	
+	# display walk off animation
+	walk_pos = walk_off_positions[drop_position]
+	
+	setTimeout do
+		function walk_anim
+			draw!
+			ctx.render "walk#{walk_pos}"
+			if ++walk_pos < 5 # 4 is last walk position
+				setTimeout walk_anim, 500ms 
+			else
+				return game_over! if misses is 3
+				# re-add trampoline events and start game again
+				setTimeout do
+					->
+						document.addEventListener \keydown key_move
+						canvas.addEventListener \click click_move
+
+						# create new person if there aren't any on screen 
+						if people.length is 0
+							if next_wave > 0
+								next_wave := 0
+							else
+								wave.0 = 0
+						draw!
+						tick!
+					500ms
+		500ms
+
+game_over = !->
+	if points > high_score_threshold
+		add_high_score points
+	
+	show_high_scores!
+
+	document.removeEventListener \keydown key_move
+	canvas.removeEventListener \click click_move
+
+	canvas.addEventListener \click click_start
+
+	# cycle gameover for 5 seconds, then display title
+	cycles = 50
+	current_gameover = 0
+	ctx.drawImage assets.gameover1, 0 0 width, height
+	cycle_gameover = !->
+		ctx.clearRect 0 0 width, height
+		current_gameover := (current_gameover + 1) % 3
+		ctx.drawImage assets["gameover#{current_gameover + 1}"], 0 0 width, height
+		if --cycles > 0
+			window.setTimeout cycle_gameover, 100ms
+		else
+			cycle_title!
+
+	window.setTimeout cycle_gameover, 100ms
+		
+
+start_game = !->
+	people := [{position: 0, delay: move_delay}] # start with initial person
+	trampoline := 1 # middle
+	points := 0
+	misses := 0
+
+	# current wave has 2 more guys, one cycle after first
+	wave := [end * move_delay, end * move_delay ]
+	# next_wave delay will be set after first wave ends
+	next_wave := 0
+
+	window.clearTimeout cycle_timeout # stop title animation
+	window.cancelAnimationFrame cycle_frame # edge case: stop title animation wrapper
+
+	document.addEventListener \keydown key_move
+	canvas.addEventListener \click click_move
+	
+	canvas.removeEventListener \click click_start
+	
+	hide_high_scores!
+
+	draw!
+	tick!
+
+click_start = ({button}: e) ->
+	if button is 0 # only left click
+		e.preventDefault!
+		start_game!
+
+key_move = !({keyCode}: e) -> 
+	if keyCode is 37 and trampoline > 0 # left
+		--trampoline
+	else if keyCode is 39 and trampoline < 2 # right
+		++trampoline
+	else if keyCode is 27 # esape
+		pause!
+	draw!
+	e.preventDefault!
+
+click_move = !({clientX, clientY}: e) ->
+	{left, top} = canvas.getBoundingClientRect!
+	x = clientX - left
+	y = clientY - top
+	if x > 208 and y < 38 # top right corner
+		pause!
+	else if 25 < x < 97
+		trampoline := 0
+	else if 97 < x < 156
+		trampoline := 1
+	else if 156 < x < 236
+		trampoline := 2
+	draw!
+	e.preventDefault!
+
+pause = !->
+	window.cancelAnimationFrame frame
+
+	# wrapped in setTimeout, because somehow, there is still a 
+	# draw! call waiting in the queue, so we want to run this after that
+	setTimeout do
+		->
+			ctx.clearRect 0 0 width, height
+			ctx.render \pause
+		0ms
+
+	document.removeEventListener \keydown key_move
+	canvas.removeEventListener \click click_move
+	canvas.addEventListener \click click_unpause
+
+click_unpause = !->
+	canvas.removeEventListener \click click_unpause
+	document.addEventListener \keydown key_move
+	canvas.addEventListener \click click_move
+	tick!
+
+# cheesy hand-drawn animation effect
+# really shitty code, sorry
+current_title = 0
+title_frame = 0
+cycle_timeout = void
+cycle_frame = void # Additional variable to cancel animation frame
+title_base = \instr # switches from title to instr every 4seconds
+cycle_title = !->
+	if ++title_frame > 40 # 4 seconds
+		title_frame := 0
+		title_base := if title_base is \title then \instr else \title 
+
+	ctx.clearRect 0 0 width, height
+	current_title := (current_title + 1 ) % 3
+	ctx.render title_base + current_title
+	
+	# wrapped in requestAnimationFrame so title won't cycle
+	# when page isn't visible
+	cycle_frame := window.requestAnimationFrame ->
+		cycle_timeout := setTimeout cycle_title, 100ms
+
+# add initial click to start game
+cycle_title!
+show_high_scores!
+canvas.addEventListener \click click_start 
+

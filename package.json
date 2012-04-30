@@ -1,0 +1,8 @@
+{
+	"name": "csci446-fire",
+	"version": "0.0.1",
+	"dependencies": {
+		"redis": "latest",
+		"mime": "latest"
+	}
+}
