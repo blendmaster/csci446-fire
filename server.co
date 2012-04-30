@@ -25,10 +25,15 @@ fourohfour = (res) ->
 
 # stupid redis client requires separate port and url
 # so we have to reconstruct the given url
-if process.env.REDISTOGO_URL
-	u = url.parse that
-db = redis.createClient u.port, if u then "#{u.protocol}//#{u.auth}@#{u.hostname}"
-db.on \error -> console.error it # simple error logging
+try
+	if process.env.REDISTOGO_URL
+		u = url.parse that
+	db = redis.createClient u.port, if u then "#{u.protocol}//#{u.auth}@#{u.hostname}"
+	db.on \error -> console.error it # simple error logging
+catch e
+	console.log "couldn't connect to redis!"
+	console.log e.message
+	process.exit 1
 
 # bootstrap scores if they don't exist
 db.get \scores (err, scores) ->

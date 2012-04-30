@@ -19,13 +19,19 @@
     });
     return res.end("Resource not found");
   };
-  if (that = process.env.REDISTOGO_URL) {
-    u = url.parse(that);
+  try {
+    if (that = process.env.REDISTOGO_URL) {
+      u = url.parse(that);
+    }
+    db = redis.createClient(u.port, u ? u.protocol + "//" + u.auth + "@" + u.hostname : void 8);
+    db.on('error', function(it){
+      return console.error(it);
+    });
+  } catch (e) {
+    console.log("couldn't connect to redis!");
+    console.log(e.message);
+    process.exit(1);
   }
-  db = redis.createClient(u.port, u ? u.protocol + "//" + u.auth + "@" + u.hostname : void 8);
-  db.on('error', function(it){
-    return console.error(it);
-  });
   db.get('scores', function(err, scores){
     if (err) {
       console.error("couldn't fetch scores!");
