@@ -22,7 +22,7 @@ fourohfour = (res) ->
 # redis connection, so we can store the high scores list
 # as a single JSON string, in a single redis key
 # surely, the best use of such an advanced data store
-db = redis.createClient!
+db = redis.createClient 6379, process.env.REDISTOGO_URL || \localhost
 db.on \error -> console.error it # simple error logging
 
 # bootstrap scores if they don't exist
@@ -102,7 +102,7 @@ http.createServer ({method}: req, res) ->
 	else
 		fourohfour res
 
-.listen 1337
+.listen process.env.PORT || 1337 # use heroku's PORT variable
 
 console.log 'Server started!'
 

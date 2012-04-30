@@ -19,7 +19,7 @@
     });
     return res.end("Resource not found");
   };
-  db = redis.createClient();
+  db = redis.createClient(6379, process.env.REDISTOGO_URL || 'localhost');
   db.on('error', function(it){
     return console.error(it);
   });
@@ -121,6 +121,6 @@
     } else {
       return fourohfour(res);
     }
-  }).listen(1337);
+  }).listen(process.env.PORT || 1337);
   console.log('Server started!');
 }).call(this);
