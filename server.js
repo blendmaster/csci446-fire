@@ -43,7 +43,7 @@
     }
     if (scores == null) {
       console.log("bootstrapping high scores");
-      return db.set('scores', [
+      return db.set('scores', JSON.stringify([
         {
           name: 'mario',
           score: 384
@@ -60,7 +60,7 @@
           name: 'toad',
           score: 27
         }
-      ], function(err, reply){
+      ]), function(err, reply){
         if (err) {
           console.error("couldn't bootstrap scores!");
           console.error(err);

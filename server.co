@@ -48,7 +48,7 @@ db.get \scores (err, scores) ->
 		console.log "bootstrapping high scores"
 		db.set do
 			\scores
-			[ 
+			JSON.stringify [ 
 				* name: \mario score: 384
 				* name: \luigi score: 253
 				* name: \wario score: 231
