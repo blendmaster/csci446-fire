@@ -1,5 +1,5 @@
 (function(){
-  var http, url, fs, path, mime, redis, error, fourohfour;
+  var http, url, fs, path, mime, redis, error, fourohfour, db;
   http = require('http');
   url = require('url');
   fs = require('fs');
@@ -19,18 +19,57 @@
     });
     return res.end("Resource not found");
   };
+  db = redis.createClient();
+  db.on('error', function(it){
+    return console.error(it);
+  });
+  db.get('scores', function(err, scores){
+    if (err) {
+      console.error("couldn't fetch scores!");
+      process.exit(1);
+    }
+    if (scores == null) {
+      console.log("bootstrapping high scores");
+      return db.set('scores', [
+        {
+          name: 'mario',
+          score: 384
+        }, {
+          name: 'luigi',
+          score: 253
+        }, {
+          name: 'wario',
+          score: 231
+        }, {
+          name: 'bowser',
+          score: 133
+        }, {
+          name: 'toad',
+          score: 27
+        }
+      ], function(err, reply){
+        if (err) {
+          console.error("couldn't bootstrap scores!");
+          return process.exit(1);
+        }
+      });
+    }
+  });
   http.createServer(function(req, res){
-    var method, pathname, filename;
+    var method, pathname, filename, content;
     method = req.method;
     pathname = url.parse(req.url).pathname;
-    console.log("request " + method + " " + pathname);
     if (method === 'GET') {
       if (pathname === '/scores') {
-        console.log("scores requested");
-        res.writeHead(200, {
-          'Content-Type': 'text/plain'
+        return db.get('scores', function(err, scores){
+          if (err) {
+            return error(err, res);
+          }
+          res.writeHead(200, {
+            'Content-Type': 'application/json'
+          });
+          return res.end(scores);
         });
-        return res.end('scores');
       } else {
         filename = path.join('public', pathname);
         return path.exists(filename, function(exists){
@@ -56,10 +95,29 @@
           });
         });
       }
-    } else if (method === 'POST') {
-      return fourohfour(res(pathname !== 'score' ? (console.log("scores updated"), res.writeHead(200, {
-        'Content-Type': 'text/plain'
-      }), res.end('scores updated')) : void 8));
+    } else if (method === 'POST' && pathname === 'score') {
+      req.setEncoding('utf8');
+      content = '';
+      req.addListener('data', function(it){
+        return content += it;
+      });
+      return req.addListener('end', function(){
+        var scores;
+        try {
+          scores = JSON.parse(content);
+        } catch (e) {
+          return error(e, res);
+        }
+        return db.set('scores', JSON.stringify(scores), function(err, reply){
+          if (err) {
+            return error(err, res);
+          }
+          res.writeHead(200, {
+            'Content-Type': 'text/plain'
+          });
+          return res.end('scores updated');
+        });
+      });
     } else {
       return fourohfour(res);
     }

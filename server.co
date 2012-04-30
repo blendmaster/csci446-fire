@@ -19,19 +19,46 @@ fourohfour = (res) ->
 	res.writeHead 404 \Content-Type : \text/plain
 	res.end "Resource not found"
 
+# redis connection, so we can store the high scores list
+# as a single JSON string, in a single redis key
+# surely, the best use of such an advanced data store
+db = redis.createClient!
+db.on \error -> console.error it # simple error logging
+
+# bootstrap scores if they don't exist
+db.get \scores (err, scores) ->
+	if err
+		console.error "couldn't fetch scores!"
+		process.exit 1
+	unless scores?
+		console.log "bootstrapping high scores"
+		db.set do
+			\scores
+			[ 
+				* name: \mario score: 384
+				* name: \luigi score: 253
+				* name: \wario score: 231
+				* name: \bowser score: 133
+				* name: \toad score: 27
+			]
+			(err, reply) ->
+				if err
+					console.error "couldn't bootstrap scores!"
+					process.exit 1
 
 # could've used express to make this easier, but that's boring
 http.createServer ({method}: req, res) ->
 
 	{pathname} = url.parse req.url
-	console.log "request #method #pathname"
 
 	if method is \GET
 		if pathname is \/scores
-			# TODO serve scores
-			console.log "scores requested"
-			res.writeHead 200 'Content-Type': 'text/plain'
-			res.end 'scores'
+
+			(err, scores) <- db.get \scores
+			return error err, res if err
+
+			res.writeHead 200 \Content-Type : \application/json
+			res.end scores
 		else
 			# serve static assets from public folder
 			filename = path.join \public pathname
@@ -51,14 +78,27 @@ http.createServer ({method}: req, res) ->
 			res.writeHead 200 \Content-Type : mime.lookup filename
 			res.end file, \binary # serve file
 
-	else if method is \POST
-		# handle POST /scores to update list
-		return fourohfour res unless pathname is \score
+	else if method is \POST and pathname is \score # handle POST /scores to update list
+		req.setEncoding \utf8 # expect utf-8 JSON
 
-		# TODO update scores
-			console.log "scores updated"
-			res.writeHead 200 'Content-Type': 'text/plain'
-			res.end 'scores updated'
+		content = ''
+		req.addListener \data -> content += it # collect chunks of data
+
+		<- req.addListener \end # when it's all here
+		
+		# make sure the content is valid JSON
+		# kind of silly since we stringify it to persist it anyway
+		try scores = JSON.parse content catch e then return error e, res
+
+		# persist to database
+		# technically clients could post any JSON structure and it would overwrite
+		# the previous score list, but lets pretend they can't
+	
+		(err, reply) <- db.set \scores JSON.stringify scores
+		return error err, res if err
+
+		res.writeHead 200 'Content-Type': 'text/plain'
+		res.end 'scores updated'
 	else
 		fourohfour res
 

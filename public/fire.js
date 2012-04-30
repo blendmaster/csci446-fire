@@ -54,36 +54,52 @@
     inter_person_delay = function(points){
       return Math.max(move_delay * 1.5, normal_rand(move_delay * (4 - points * 1 / 1000), move_delay * 20));
     };
-    try {
-      high_scores = JSON.parse(typeof localStorage != 'undefined' && localStorage !== null ? localStorage.high_scores : void 8);
-    } catch (_e) {}
-    if (!(high_scores != null && Array.isArray(high_scores))) {
-      high_scores = [
-        {
-          name: 'mario',
-          score: 384
-        }, {
-          name: 'luigi',
-          score: 253
-        }, {
-          name: 'wario',
-          score: 231
-        }, {
-          name: 'bowser',
-          score: 133
-        }, {
-          name: 'toad',
-          score: 27
+    high_scores = [];
+    (function(){
+      var error;
+      error = function(){
+        alert("Uh oh, could get the high score list!");
+        high_scores = [
+          {
+            name: 'mario',
+            score: 384
+          }, {
+            name: 'luigi',
+            score: 253
+          }, {
+            name: 'wario',
+            score: 231
+          }, {
+            name: 'bowser',
+            score: 133
+          }, {
+            name: 'toad',
+            score: 27
+          }
+        ];
+        return show_high_scores();
+      };
+      this.open('GET', '/scores');
+      this.addEventListener('load', function(){
+        try {
+          high_scores = JSON.parse(this.response);
+          return show_high_scores();
+        } catch (e) {
+          return error();
         }
-      ];
-    }
-    high_score_threshold = high_scores.reduce(function(a, b){
-      if (a.score < b.score) {
-        return a;
-      } else {
-        return b;
-      }
-    }).score;
+      });
+      this.addEventListener('error', error);
+      this.send();
+    }.call(new XMLHttpRequest));
+    high_score_threshold = function(){
+      return high_scores.reduce(function(a, b){
+        if (a.score < b.score) {
+          return a;
+        } else {
+          return b;
+        }
+      }).score;
+    };
     add_high_score = function(points){
       high_scores.push({
         name: window.prompt('You got a high score! enter your name:', '').substr(0, 10) || 'anonymous',
@@ -92,13 +108,16 @@
       high_scores = high_scores.sort(function(a, b){
         return b.score - a.score;
       }).slice(0, 5);
-      try {
-        if (localStorage) {
-          localStorage['high_scores'] = JSON.stringify(high_scores);
-        }
-      } catch (e) {
-        alert("Sorry, I couldn't save your high score. Check your browser's security settings and make sure that this webpage is allowed to store data on your computer.");
-      }
+      (function(){
+        this.open('POST', '/scores');
+        this.addEventListener('error', function(){
+          return alert("Sorry, I couldn't save your high score!");
+        });
+        this.addEventListener('load', function(){
+          return show_high_scores();
+        });
+        this.send(JSON.stringify(high_scores));
+      }.call(new XMLHttpRequest));
     };
     high_scores_el = document.getElementById('high-scores');
     hide_high_scores = function(){
@@ -248,7 +267,7 @@
     };
     game_over = function(){
       var cycles, current_gameover, cycle_gameover;
-      if (points > high_score_threshold) {
+      if (points > high_score_threshold()) {
         add_high_score(points);
       }
       show_high_scores();
@@ -362,7 +381,6 @@
       });
     };
     cycle_title();
-    show_high_scores();
     return canvas.addEventListener('click', click_start);
   });
 }).call(this);

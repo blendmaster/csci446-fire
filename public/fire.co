@@ -84,18 +84,32 @@ inter_person_delay = (points) ->
 		normal_rand move_delay * (4 - points * 1 / 1000points) , move_delay * 20
 
 # high score handling
-try # using try block because localStorage access might be security blocked
-	high_scores = JSON.parse localStorage?high_scores # localstorage only stores strings
+high_scores = []
 
-unless high_scores? and Array.isArray high_scores
-	high_scores = 
-		* name: \mario score: 384
-		* name: \luigi score: 253
-		* name: \wario score: 231
-		* name: \bowser score: 133
-		* name: \toad score: 27
+# fetch real high scores from server
+with new XMLHttpRequest
+	error = ->
+		alert "Uh oh, could get the high score list!"
+		# set default high scores
+		high_scores :=
+			* name: \mario score: 384
+			* name: \luigi score: 253
+			* name: \wario score: 231
+			* name: \bowser score: 133
+			* name: \toad score: 27
+		show_high_scores!
 
-high_score_threshold = # minimum high score
+	@open \GET \/scores
+	@addEventListener \load ->
+		try 
+			high_scores := JSON.parse @response
+			show_high_scores!
+		catch
+			error!
+	@addEventListener \error error
+	@send!
+
+high_score_threshold = -> # minimum high score
 	( high_scores.reduce (a,b) -> if a.score < b.score then a else b ).score
 
 add_high_score = !(points) ->
@@ -105,11 +119,15 @@ add_high_score = !(points) ->
 
 	# sort decending and take 5 highest
 	high_scores.:=sort( (a,b) -> b.score - a.score ).slice 0 5
-	try
-		localStorage.\high_scores = JSON.stringify( high_scores ) if localStorage # persist
-	catch
-		alert "Sorry, I couldn't save your high score. Check your browser's security settings and 
-			make sure that this webpage is allowed to store data on your computer."
+
+	# persist to server
+	with new XMLHttpRequest
+		@open \POST \/scores
+		@addEventListener \error ->
+			alert "Sorry, I couldn't save your high score!"
+		@addEventListener \load ->
+			show_high_scores!
+		@send JSON.stringify high_scores
 
 high_scores_el = document.getElementById \high-scores
 
@@ -243,7 +261,7 @@ drop_animation = !(drop_position) ->
 		500ms
 
 game_over = !->
-	if points > high_score_threshold
+	if points > high_score_threshold!
 		add_high_score points
 	
 	show_high_scores!
@@ -367,6 +385,5 @@ cycle_title = !->
 
 # add initial click to start game
 cycle_title!
-show_high_scores!
 canvas.addEventListener \click click_start 
 
