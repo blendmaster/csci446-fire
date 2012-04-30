@@ -109,7 +109,7 @@
           });
         });
       }
-    } else if (method === 'POST' && pathname === 'score') {
+    } else if (method === 'POST' && pathname === '/scores') {
       req.setEncoding('utf8');
       content = '';
       req.addListener('data', function(it){
