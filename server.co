@@ -22,7 +22,12 @@ fourohfour = (res) ->
 # redis connection, so we can store the high scores list
 # as a single JSON string, in a single redis key
 # surely, the best use of such an advanced data store
-db = redis.createClient 6379, process.env.REDISTOGO_URL || \localhost
+
+# stupid redis client requires separate port and url
+# so we have to reconstruct the given url
+if process.env.REDISTOGO_URL
+	u = url.parse that
+db = redis.createClient u.port, if u then "#{u.protocol}//#{u.auth}@#{u.hostname}"
 db.on \error -> console.error it # simple error logging
 
 # bootstrap scores if they don't exist

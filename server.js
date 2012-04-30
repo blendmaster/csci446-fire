@@ -1,5 +1,5 @@
 (function(){
-  var http, url, fs, path, mime, redis, error, fourohfour, db;
+  var http, url, fs, path, mime, redis, error, fourohfour, that, u, db;
   http = require('http');
   url = require('url');
   fs = require('fs');
@@ -19,7 +19,10 @@
     });
     return res.end("Resource not found");
   };
-  db = redis.createClient(6379, process.env.REDISTOGO_URL || 'localhost');
+  if (that = process.env.REDISTOGO_URL) {
+    u = url.parse(that);
+  }
+  db = redis.createClient(u.port, u ? u.protocol + "//" + u.auth + "@" + u.hostname : void 8);
   db.on('error', function(it){
     return console.error(it);
   });
