@@ -28,13 +28,14 @@
       return console.error(it);
     });
   } catch (e) {
-    console.log("couldn't connect to redis!");
-    console.log(e.message);
+    console.error("couldn't connect to redis!");
+    console.error(e);
     process.exit(1);
   }
   db.get('scores', function(err, scores){
     if (err) {
       console.error("couldn't fetch scores!");
+      console.error(err);
       process.exit(1);
     }
     if (scores == null) {
@@ -59,6 +60,7 @@
       ], function(err, reply){
         if (err) {
           console.error("couldn't bootstrap scores!");
+          console.error(err);
           return process.exit(1);
         }
       });

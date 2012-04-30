@@ -31,14 +31,15 @@ try
 	db = redis.createClient u.port, if u then "#{u.protocol}//#{u.auth}@#{u.hostname}"
 	db.on \error -> console.error it # simple error logging
 catch e
-	console.log "couldn't connect to redis!"
-	console.log e.message
+	console.error "couldn't connect to redis!"
+	console.error e
 	process.exit 1
 
 # bootstrap scores if they don't exist
 db.get \scores (err, scores) ->
 	if err
 		console.error "couldn't fetch scores!"
+		console.error err
 		process.exit 1
 	unless scores?
 		console.log "bootstrapping high scores"
@@ -54,6 +55,7 @@ db.get \scores (err, scores) ->
 			(err, reply) ->
 				if err
 					console.error "couldn't bootstrap scores!"
+					console.error err
 					process.exit 1
 
 # could've used express to make this easier, but that's boring
